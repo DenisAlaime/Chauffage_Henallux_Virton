@@ -1,0 +1,6 @@
+python generateur_horaire.py --salles C:\Data\salles.ini --out C:\Data\Horaire_all.xml --api "https://simple-planning.henallux.be/api/getHoraireSalle" --include-empty-days --verbose
+
+
+
+python generateur_horaire.py --salles C:\Data\salles.ini --out C:\Data\Horaire_all.xml --api "https://simple-planning.henallux.be/api/getHoraireSalle" --include-empty-days --shift-hours -2
+
