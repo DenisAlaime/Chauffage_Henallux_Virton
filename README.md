@@ -102,6 +102,7 @@ Le fichier généré suit cette structure :
 Exemple :
 ```bash
 python generateur_horaire_v2.py --salles salles.ini --out Horaire_all.xml --eol crlf
+python generateur_horaire_v2.py --salles salles.ini --out Horaire2.xml --eol lf --verbos
 ```
 
 👉 Ces améliorations garantissent la compatibilité entre systèmes et évitent les problèmes de fichiers avec des fins de lignes mélangées.
