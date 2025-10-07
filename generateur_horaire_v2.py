@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 Générateur d'horaires XML (7 prochains jours) pour plusieurs locaux.
-- API POST: https://simple-planning.henallux.be/api/getHoraireSalle
-- Params: action=getHoraireSalle, codeSalle=<NomSalle>
-- Options: --mock, --mock-dir, --include-empty-days, --no-filter-location, --verbose
-- Sortie: chaque <tNBEvent> est sur UNE SEULE LIGNE.
+Mise à jour :
+- Chemins **relatifs** dans les exemples et usage.
+- Contrôle explicite des fins de lignes via --eol (lf par défaut).
+- Sortie XML strictement une ligne par <tNBEvent>.
 Compatible Python 3.8+.
 """
 import argparse
@@ -12,6 +12,7 @@ import json
 import re
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 # ---- Fuseau Europe/Brussels (si disponible)
@@ -115,7 +116,6 @@ def events_from_feed(feed: List[Dict[str, Any]], salle_filter: Optional[str],
             continue
         # appliquer le décalage horaire demandé
         if shift_hours:
-            from datetime import timedelta
             dt1 = dt1 + timedelta(hours=shift_hours)
             dt2 = dt2 + timedelta(hours=shift_hours)
         if start_date and dt1.date() < start_date:
@@ -177,7 +177,7 @@ def ensure_full_week(events_by_date: Dict[str, list], start_date) -> None:
         events_by_date.setdefault(dkey, [])
 
 def build_xml(events_by_date: Dict[str, list]) -> str:
-    """Sérialise le XML, <tNBEvent> sur une seule ligne, sauts de ligne entre nœuds."""
+    """Sérialise le XML, <tNBEvent> sur une seule ligne, sauts de ligne entre nœuds (LF)."""
     from xml.etree import ElementTree as ET
     root = ET.Element("dataentry")
     for idx, (date_key, evts) in enumerate(sorted(events_by_date.items())):
@@ -219,88 +219,84 @@ def fetch_for_salle(api_url: Optional[str], salle: str,
     """Retourne le JSON pour une salle (mock-dir > mock > POST API)."""
     # mock-dir prioritaire
     if mock_dir:
-        from pathlib import Path
         cand_json = Path(mock_dir) / (salle + ".json")
         cand_txt  = Path(mock_dir) / (salle + ".txt")
         for cand in (cand_json, cand_txt):
             if cand.exists():
                 if verbose:
-                    print("[mock-dir] %s <- %s" % (salle, str(cand)))
-                with cand.open("r", encoding="utf-8") as f:
-                    return json.load(f)
-        if verbose:
-            print("[mock-dir] aucun fichier dédié pour %s" % salle)
+                    print(f"[mock-dir] {salle} <- {cand}")
+                return json.loads(cand.read_text(encoding="utf-8"))
     # mock unique
     if mock_path:
         if verbose:
-            print("[mock] %s <- %s" % (salle, mock_path))
-        with open(mock_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    # API POST
-    if not api_url:
-        raise RuntimeError("Aucune API fournie. Utilisez --api ou --mock/--mock-dir.")
+            print(f"[mock] {salle} <- {mock_path}")
+        return json.loads(Path(mock_path).read_text(encoding="utf-8"))
+    # API réelle
+    assert api_url, "api_url requis si pas de mock/mock-dir"
     if verbose:
-        print("[api] POST %s salle=%s" % (api_url, salle))
-    payload = {"action": "getHoraireSalle", "codeSalle": salle}
-    text = http_post_text(api_url, payload)
-    return json.loads(text)
+        print(f"[api] POST {salle}")
+    text = http_post_text(api_url, {"action": "getHoraireSalle", "codeSalle": salle})
+    # L'API peut retourner du JSON déjà sérialisé
+    try:
+        return json.loads(text)
+    except Exception:
+        # Certains endpoints retournent une clé 'horaire' contenant 'ICAL' sérialisé
+        return {"horaire": {"ICAL": text}}
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--salles", required=True, help="fichier .ini avec salleXX=Nom")
-    ap.add_argument("--out", required=True, help="fichier XML de sortie")
-    ap.add_argument("--api", required=False, help="URL POST (ex: https://simple-planning.henallux.be/api/getHoraireSalle)")
-    ap.add_argument("--mock", required=False, help="chemin du mock unique (JSON)")
-    ap.add_argument("--mock-dir", required=False, help="dossier avec un mock par salle (<salle>.json|.txt)")
-    ap.add_argument("--include-empty-days", action="store_true", help="affiche les 7 jours même sans événements")
-    ap.add_argument("--no-filter-location", action="store_true", help="(test) ne pas filtrer par nom de salle")
-    ap.add_argument("--verbose", action="store_true", help="affiche la progression")
-    ap.add_argument("--shift-hours", type=int, default=-2, help="décalage (en heures) appliqué aux TimeSTART/TimeEND et à la date (ex: -2)")
-    args = ap.parse_args()
+def main():
+    p = argparse.ArgumentParser(description="Génère un XML d'horaires (7 jours) à partir d'une API Henallux ou de mocks.")
+    p.add_argument("--salles", required=True, help="Fichier .ini listant les salles (chemin relatif OK).")
+    p.add_argument("--out", required=True, help="Fichier XML de sortie (chemin relatif OK).")
+    p.add_argument("--api", default="https://simple-planning.henallux.be/api/getHoraireSalle", help="URL de l'API.")
+    p.add_argument("--mock", help="Fichier mock JSON unique (optionnel).")
+    p.add_argument("--mock-dir", help="Dossier de mocks (un fichier par salle, optionnel).")
+    p.add_argument("--include-empty-days", action="store_true", help="Inclure les jours vides.")
+    p.add_argument("--no-filter-location", action="store_true", help="Ne pas filtrer par salle exacte (affiche tout).")
+    p.add_argument("--shift-hours", type=int, default=-2, help="Décalage d'heures à appliquer (défaut: -2).")
+    p.add_argument("--eol", choices=["lf", "crlf"], default="lf", help="Style de fin de ligne de sortie (défaut: lf).")
+    p.add_argument("--verbose", action="store_true", help="Logs détaillés.")
+    args = p.parse_args()
 
     salles = load_salles_ini(args.salles)
     if not salles:
-        print("Aucune salle trouvée dans", args.salles)
-        return 1
+        raise SystemExit("Aucune salle trouvée dans --salles")
 
-    # Fenêtre de 7 jours en timezone locale si disponible
-    now = datetime.now(TZ) if TZ is not None else datetime.now(timezone.utc)
-    today = now.date()
-    end = today + timedelta(days=6)
+    today = datetime.now(TZ).date() if TZ else datetime.now().date()
+    start_date = today
+    end_date = start_date + timedelta(days=6)
 
-    events_by_date: Dict[str, list] = defaultdict(list)
-    if args.include_empty_days:
-        ensure_full_week(events_by_date, today)
+    events_by_date: Dict[str, List[Dict[str, str]]] = defaultdict(list)
 
-    total_evt = 0
     for salle in salles:
         data = fetch_for_salle(args.api, salle, args.mock, args.mock_dir, verbose=args.verbose)
         feed = normalize_feed(data)
-        evts = events_from_feed(feed, salle_filter=(None if args.no_filter_location else salle),
-                                start_date=today, end_date=end, shift_hours=args.shift_hours)
-        total_evt += len(evts)
-        if args.verbose:
-            print("[ok] %s: %d événements" % (salle, len(evts)))
+        evts = events_from_feed(feed, None if args.no_filter_location else salle, start_date, end_date, args.shift_hours)
+        # Grouper par date
+        by_date: Dict[str, List[Dict[str, str]]] = defaultdict(list)
         for e in evts:
-            date_key = e.pop("DATEKEY")
-            events_by_date[date_key].append(e)
-
-    # Tri et fusion par jour
-    for date_key, lst in list(events_by_date.items()):
-        lst.sort(key=lambda x: (x.get("LOCATION",""), x.get("SUMMARY",""), x.get("TimeSTART",""), x.get("TimeEND","")))
-        events_by_date[date_key] = merge_contiguous_events(lst)
+            by_date[e["DATEKEY"]].append({k: e[k] for k in ("LOCATION","TimeSTART","TimeEND","SUMMARY")})
+        # Fusion par date
+        for dkey, lst in by_date.items():
+            events_by_date[dkey].extend(merge_contiguous_events(lst))
 
     if args.include_empty_days:
-        ensure_full_week(events_by_date, today)
+        for i in range(7):
+            dkey = (start_date + timedelta(days=i)).strftime("%Y%m%d")
+            events_by_date.setdefault(dkey, [])
 
-    xml_out = build_xml(events_by_date)
-    with open(args.out, "w", encoding="utf-8") as f:
-        f.write(xml_out)
+    xml_text_lf = build_xml(events_by_date)  # construit avec \n
+    if args.eol == "crlf":
+        out_bytes = xml_text_lf.replace("\n", "\r\n").encode("utf-8")
+    else:
+        out_bytes = xml_text_lf.encode("utf-8")
+
+    # Ecriture binaire pour maîtriser les fins de lignes
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_bytes(out_bytes)
 
     if args.verbose:
-        print("[total] événements conservés:", total_evt)
-        print("OK ->", args.out)
-    return 0
+        print(f"OK -> {out_path} ({args.eol.upper()})")
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()

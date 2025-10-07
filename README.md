@@ -87,5 +87,21 @@ Le fichier généré suit cette structure :
 - Le script regroupe automatiquement les créneaux de 10 minutes consécutifs en **un seul bloc** par cours.  
 - Chaque `<tNBEvent>` est écrit sur **une seule ligne**.  
 - L’API est appelée en **POST** avec `action=getHoraireSalle` et `codeSalle=<NomSalle>`.  
-- Les horaires sont ajustés par défaut de **–2 h** (`--shift-hours`).  
-# Chauffage_Henallux_Virton
+- Les horaires sont ajustés par défaut de **–2 h** (`--shift-hours`).
+
+---
+
+## 🆕 Nouveautés et améliorations (version actuelle)
+
+- **Chemins relatifs** : plus besoin de chemins absolus (ex. `C:\...`). Le script peut être exécuté depuis n'importe quel dossier.  
+- **Nettoyage des fins de lignes** : les caractères `CR` indésirables sont supprimés automatiquement.  
+- **Option `--eol`** : permet de choisir le style des fins de lignes du fichier XML généré :  
+  - `lf` (par défaut, style Unix/Linux/macOS, identique à `horaire2_original.xml`)  
+  - `crlf` (style Windows)  
+
+Exemple :
+```bash
+python generateur_horaire_v2.py --salles salles.ini --out Horaire_all.xml --eol crlf
+```
+
+👉 Ces améliorations garantissent la compatibilité entre systèmes et évitent les problèmes de fichiers avec des fins de lignes mélangées.
