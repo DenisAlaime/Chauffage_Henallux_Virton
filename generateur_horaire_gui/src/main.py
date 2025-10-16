@@ -103,7 +103,21 @@ class HorairesApp:
         if no_filter_location:
             command.append("--no-filter-location")
 
-        subprocess.run(command)
+        result = subprocess.run(command)
+
+        # si la génération a réussi, tenter l'upload via FTP (config.ini à la racine du package)
+        try:
+            if result.returncode == 0 and os.path.exists(output):
+                config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "config.ini"))
+                # utils.py se trouve dans le même dossier src
+                from utils import upload_xml_via_ftp
+                ok, msg = upload_xml_via_ftp(output, config_path)
+                if not ok:
+                    print("Upload FTP échoué :", msg)
+                else:
+                    print("Upload FTP :", msg)
+        except Exception as e:
+            print("Erreur lors de l'upload FTP :", e)
 
     def save_last_paths(self):
         data = {
