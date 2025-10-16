@@ -32,6 +32,7 @@ To set up the project, follow these steps:
 To run the application, execute the following command:
 ```
 python src/main.py
+C:\Data\Denis\Projets TwinCad\Chauffage\Programme Python pour création fichier XML> python .\generateur_horaire_gui\src\main.py
 ```
 
 Once the application is running, you will be presented with a GUI that allows you to configure the necessary options for the `generateur_horaire_v2.py` script.

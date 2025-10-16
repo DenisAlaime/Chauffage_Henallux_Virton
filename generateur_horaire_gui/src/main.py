@@ -1,6 +1,7 @@
 from tkinter import Tk, Label, Entry, Button, Checkbutton, IntVar, filedialog
 import subprocess
 import os
+import sys
 import json
 
 CONFIG_FILE = "last_paths.json"
@@ -82,8 +83,15 @@ class HorairesApp:
 
         self.save_last_paths()
 
+        # Résoudre le chemin absolu vers le script à partir du fichier courant
+        script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "generateur_horaire_v2.py"))
+        if not os.path.exists(script_path):
+            print(f"Script introuvable: {script_path}")
+            return
+
+        # Utiliser le même interpréteur Python (sys.executable) et le chemin absolu
         command = [
-            "python", "generateur_horaire_v2.py",
+            sys.executable, script_path,
             "--salles", salles,
             "--out", output,
             "--api", api_url,
