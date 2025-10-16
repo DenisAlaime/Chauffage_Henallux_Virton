@@ -1,0 +1,5 @@
+Tkinter
+PyQt5
+requests
+jsonschema
+pandas
